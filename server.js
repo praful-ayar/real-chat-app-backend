@@ -67,8 +67,42 @@ app.post("/api/login", async (req, res) => {
 // Get Messages API (Chat History)
 app.get("/api/messages", async (req, res) => {
   try {
-    const messages = await Message.find().sort({ createdAt: 1 });
+    const { sender, receiver } = req.query;
+    let query = {};
+    
+    if (receiver && receiver !== "null") {
+      // Private chat between two users
+      query = {
+        $or: [
+          { username: sender, receiver: receiver },
+          { username: receiver, receiver: sender }
+        ]
+      };
+    } else {
+      // Public chat
+      query = { receiver: { $in: [null, ""] } };
+    }
+
+    const messages = await Message.find(query).sort({ createdAt: 1 });
     res.status(200).json(messages);
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Delete Message API
+app.delete("/api/messages/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deletedMessage = await Message.findByIdAndDelete(id);
+    if (!deletedMessage) {
+      return res.status(404).json({ message: "Message not found" });
+    }
+    
+    // Broadcast the message deletion to all connected socket clients
+    io.emit("messageDeleted", id);
+
+    res.status(200).json({ message: "Message deleted successfully", id });
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
@@ -77,17 +111,22 @@ app.get("/api/messages", async (req, res) => {
 // Send Message API
 app.post("/api/messages", async (req, res) => {
   try {
-    const { username, text } = req.body;
+    const { username, text, receiver } = req.body;
     
     if (!username || !text) {
       return res.status(400).json({ message: "Username and text are required" });
     }
 
-    const newMessage = new Message({ username, text });
+    const newMessage = new Message({ username, text, receiver });
     await newMessage.save();
 
-    // Broadcast the message to all connected socket clients
-    io.emit("message", newMessage);
+    if (receiver) {
+      // Send private message to the receiver and the sender's own rooms
+      io.to(receiver).to(username).emit("privateMessage", newMessage);
+    } else {
+      // Broadcast public message to everyone
+      io.emit("message", newMessage);
+    }
 
     res.status(201).json(newMessage);
   } catch (error) {
@@ -101,6 +140,7 @@ io.on("connection", (socket) => {
   console.log("User Connected:", socket.id);
 
   socket.on("join", (username) => {
+    socket.join(username); // Create a specific room for this user to receive private messages
     users.push({ id: socket.id, username });
     io.emit("users", users);
   });

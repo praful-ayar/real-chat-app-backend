@@ -9,6 +9,10 @@ const messageSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  receiver: {
+    type: String,
+    default: null
+  },
   createdAt: {
     type: Date,
     default: Date.now
