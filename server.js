@@ -115,6 +115,18 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Handle message status updates (Delivered / Seen)
+  socket.on("updateMessageStatus", async ({ messageIds, status, senderEmail }) => {
+    try {
+      if (!messageIds || messageIds.length === 0) return;
+      await Message.updateMany({ _id: { $in: messageIds } }, { $set: { status } });
+      // Emit to the sender so their UI updates
+      io.to(senderEmail).emit("messageStatusUpdated", { messageIds, status });
+    } catch (err) {
+      console.error("Error updating status:", err);
+    }
+  });
+
   socket.on("disconnect", () => {
     users = users.filter(u => u.id !== socket.id);
     io.emit("users", users);

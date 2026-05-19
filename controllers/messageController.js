@@ -4,13 +4,23 @@ const User = require("../models/User");
 // Get all messages (public or private chat history)
 exports.getMessages = async (req, res) => {
   try {
-    const { sender, receiver } = req.query;
-    let query = {};
+    const { sender, receiver, search } = req.query;
+    let conditions = [];
 
     if (receiver && receiver !== "null") {
-      query = { $or: [{ email: sender, receiver: receiver }, { email: receiver, receiver: sender }] };
+      conditions.push({ $or: [{ email: sender, receiver: receiver }, { email: receiver, receiver: sender }] });
     } else {
-      query = { receiver: { $in: [null, ""] } };
+      conditions.push({ receiver: { $in: [null, ""] } });
+    }
+
+    if (search) {
+      const safeSearch = search.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+      conditions.push({ text: { $regex: safeSearch, $options: "i" } });
+    }
+
+    let query = {};
+    if (conditions.length > 0) {
+      query = { $and: conditions };
     }
 
     const messages = await Message.find(query).sort({ createdAt: 1 }).lean();
@@ -76,6 +86,30 @@ exports.deleteMessage = async (req, res) => {
     }
     io.emit("messageDeleted", id);
     res.status(200).json({ message: "Message deleted successfully", id });
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Edit a message
+exports.editMessage = async (req, res) => {
+  const io = req.app.get('socketio');
+  try {
+    const { id } = req.params;
+    const { text } = req.body;
+    
+    const updatedMessage = await Message.findByIdAndUpdate(id, { text, isEdited: true }, { new: true });
+    if (!updatedMessage) {
+      return res.status(404).json({ message: "Message not found" });
+    }
+    
+    // Agar private message tha to private room me bhejo, warna public me
+    if (updatedMessage.receiver) {
+      io.to(updatedMessage.receiver).to(updatedMessage.email).emit("messageEdited", { id, text });
+    } else {
+      io.emit("messageEdited", { id, text });
+    }
+    res.status(200).json(updatedMessage);
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
