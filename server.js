@@ -4,6 +4,7 @@ const http = require("http");
 const cors = require("cors");
 const mongoose = require("mongoose");
 const { Server } = require("socket.io");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const connectDB = require("./config/db");
 const User = require("./models/User");
@@ -36,6 +37,36 @@ app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/messages', require('./routes/messageRoutes'));
 app.use('/api/gifs', require('./routes/gifRoutes'));
 
+// Translation Route using Gemini
+app.post('/api/translate', async (req, res) => {
+  try {
+    const { text, targetLanguage } = req.body;
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({ message: "GEMINI_API_KEY is missing in .env" });
+    }
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+    const prompt = `Task: Translate the text to ${targetLanguage}.
+    Rules: Return ONLY the translated text. Do not include explanations, quotes, or original text.
+    Text: ${text}`;
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    let translatedText = response.text().trim();
+    res.json({ translatedText });
+  } catch (error) {
+    console.error("Translation Error:", error);
+    if (error.status === 429) {
+      return res.status(429).json({
+        message: "Quota exceeded. Please wait a few seconds or check your API limits."
+      });
+    }
+    res.status(500).json({
+      message: "Translation failed",
+      details: error.message
+    });
+  }
+});
+
 let users = [];
 
 io.on("connection", (socket) => {
@@ -44,10 +75,10 @@ io.on("connection", (socket) => {
   socket.on("join", async (email) => {
     socket.join(email); // Create a specific room for this user to receive private messages
     const user = await User.findOne({ email }).select('firstname lastname profileImage').lean();
-    users.push({ 
-      id: socket.id, 
-      email, 
-      firstname: user ? user.firstname : "", 
+    users.push({
+      id: socket.id,
+      email,
+      firstname: user ? user.firstname : "",
       lastname: user ? user.lastname : "",
       profileImage: user ? user.profileImage : ""
     });
