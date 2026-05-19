@@ -13,6 +13,18 @@ const messageSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  replyTo: {
+    type: String,
+    default: null
+  },
+  replyToText: {
+    type: String,
+    default: null
+  },
+  replyToSender: {
+    type: String,
+    default: null
+  },
   createdAt: {
     type: Date,
     default: Date.now

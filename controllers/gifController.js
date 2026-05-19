@@ -44,3 +44,32 @@ exports.deleteGif = async (req, res) => {
         res.status(500).send('Server Error');
     }
 };
+
+// @route   GET api/gifs/giphy/trending
+exports.getGiphyTrending = async (req, res) => {
+    try {
+        const apiKey = process.env.GIPHY_API_KEY;
+        // Fetch from Giphy (Requires Node 18+ for native fetch)
+        const response = await fetch(`https://api.giphy.com/v1/gifs/trending?api_key=${apiKey}&limit=20`);
+        const data = await response.json();
+        res.json(data.data.map(g => ({ url: g.images.original.url })));
+    } catch (err) {
+        console.error('Error fetching Giphy trending:', err.message);
+        res.status(500).json({ message: 'Error fetching Giphy trending' });
+    }
+};
+
+// @route   GET api/gifs/giphy/search
+exports.searchGiphy = async (req, res) => {
+    try {
+        const apiKey = process.env.GIPHY_API_KEY;
+        const query = req.query.q;
+        if (!query) return res.status(400).json({ message: 'Query is required' });
+        const response = await fetch(`https://api.giphy.com/v1/gifs/search?api_key=${apiKey}&q=${query}&limit=20`);
+        const data = await response.json();
+        res.json(data.data.map(g => ({ url: g.images.original.url })));
+    } catch (err) {
+        console.error('Error searching Giphy:', err.message);
+        res.status(500).json({ message: 'Error searching Giphy' });
+    }
+};

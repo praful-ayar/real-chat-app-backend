@@ -36,13 +36,13 @@ exports.getMessages = async (req, res) => {
 exports.sendMessage = async (req, res) => {
   const io = req.app.get('socketio'); // Get io instance from app
   try {
-    const { email, text, receiver } = req.body;
+    const { email, text, receiver, replyTo, replyToText, replyToSender } = req.body;
 
     if (!email || !text) {
       return res.status(400).json({ message: "email and text are required" });
     }
 
-    const newMessage = new Message({ email, text, receiver });
+    const newMessage = new Message({ email, text, receiver, replyTo, replyToText, replyToSender });
     await newMessage.save();
 
     const user = await User.findOne({ email });
@@ -79,4 +79,51 @@ exports.deleteMessage = async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
+};
+
+// reply massage
+exports.createMessage = async (req, res) => {
+    try {
+        // req.body se reply fields extract karein
+        const { email, text, receiver, replyTo, replyToText, replyToSender } = req.body;
+
+        if (!email || !text) {
+            return res.status(400).json({ message: 'Email and text are required' });
+        }
+
+        // Naye message me data pass karein
+        const newMessage = new Message({
+            email,
+            text,
+            receiver,
+            replyTo,
+            replyToText,    
+            replyToSender
+        });
+
+        await newMessage.save();
+
+        // Socket par broadcast karne ke liye user detail attach karein
+        const user = await User.findOne({ email });
+        const messageObj = newMessage.toObject();
+        if (user) {
+            messageObj.firstname = user.firstname;
+            messageObj.lastname = user.lastname;
+            messageObj.profileImage = user.profileImage;
+        }
+
+        // Emit through socket
+        const io = req.app.get('socketio');
+        if (receiver) {
+            io.to(receiver).emit("privateMessage", messageObj);
+            io.to(email).emit("privateMessage", messageObj);
+        } else {
+            io.emit("message", messageObj);
+        }
+
+        res.status(201).json(messageObj);
+    } catch (error) {
+        console.error('Error saving message:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
 };
