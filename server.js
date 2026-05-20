@@ -36,6 +36,7 @@ const PORT = process.env.PORT || 3000;
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/messages', require('./routes/messageRoutes'));
 app.use('/api/gifs', require('./routes/gifRoutes'));
+app.use('/api/contacts', require('./routes/contactRoutes'));
 
 // Translation Route using Gemini
 app.post('/api/translate', async (req, res) => {

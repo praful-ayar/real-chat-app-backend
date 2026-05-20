@@ -115,6 +115,45 @@ exports.editMessage = async (req, res) => {
   }
 };
 
+// React to a message
+exports.reactToMessage = async (req, res) => {
+  const io = req.app.get('socketio');
+  try {
+    const { id } = req.params;
+    const { emoji, email } = req.body;
+
+    const message = await Message.findById(id);
+    if (!message) return res.status(404).json({ message: "Message not found" });
+
+    // Extract current reactions or default to empty array
+    const currentReactions = message.reactions || [];
+    const index = currentReactions.findIndex(r => r.email === email);
+
+    if (index > -1) {
+      if (currentReactions[index].emoji === emoji) {
+        currentReactions.splice(index, 1); // Toggle off
+      } else {
+        currentReactions[index].emoji = emoji; // Change reaction
+      }
+    } else {
+      currentReactions.push({ emoji, email });
+    }
+
+    const updatedMessage = await Message.findByIdAndUpdate(id, { reactions: currentReactions }, { new: true });
+    const reactionData = { id, reactions: updatedMessage.reactions };
+
+    if (updatedMessage.receiver) {
+      io.to(updatedMessage.receiver).to(updatedMessage.email).emit("messageReaction", reactionData);
+    } else {
+      io.emit("messageReaction", reactionData);
+    }
+
+    res.status(200).json(reactionData);
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 // reply massage
 exports.createMessage = async (req, res) => {
     try {

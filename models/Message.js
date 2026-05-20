@@ -34,6 +34,10 @@ const messageSchema = new mongoose.Schema({
     enum: ['sent', 'delivered', 'seen'],
     default: 'sent'
   },
+  reactions: [{
+    emoji: String,
+    email: String
+  }],
   createdAt: {
     type: Date,
     default: Date.now

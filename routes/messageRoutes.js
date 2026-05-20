@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getMessages, sendMessage, deleteMessage, editMessage } = require('../controllers/messageController');
+const { getMessages, sendMessage, deleteMessage, editMessage, reactToMessage } = require('../controllers/messageController');
 
 // @route   GET api/messages
 router.get('/', getMessages);
@@ -12,5 +12,8 @@ router.post('/', sendMessage);
 router.delete('/:id', deleteMessage);
 
 router.put('/:id', editMessage);
+
+// @route   POST api/messages/:id/react
+router.post('/:id/react', reactToMessage);
 
 module.exports = router;
