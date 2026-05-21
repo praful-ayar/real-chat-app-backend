@@ -98,7 +98,16 @@ exports.getContacts = async (req, res) => {
             return res.status(404).json({ message: "User not found" });
         }
 
-        res.status(200).json(user.contacts);
+        const getOnlineUsers = req.app.get('getOnlineUsers');
+        const onlineUsers = getOnlineUsers ? getOnlineUsers().map(u => u.email) : [];
+        
+        const contactsWithStatus = user.contacts.map(contact => {
+            const contactObj = contact.toObject();
+            contactObj.isOnline = onlineUsers.includes(contact.email);
+            return contactObj;
+        });
+
+        res.status(200).json(contactsWithStatus);
     } catch (error) {
         console.error("Get contacts error:", error);
         res.status(500).json({ message: "Server error" });
@@ -124,7 +133,16 @@ exports.searchUsers = async (req, res) => {
 
     // Sirf top 10 matches return karega profile image ke sath
     const users = await User.find(searchConditions).select('email firstname lastname profileImage').limit(10).lean();
-    res.status(200).json(users);
+    
+    const getOnlineUsers = req.app.get('getOnlineUsers');
+    const onlineUsers = getOnlineUsers ? getOnlineUsers().map(u => u.email) : [];
+    
+    const usersWithStatus = users.map(u => ({
+        ...u,
+        isOnline: onlineUsers.includes(u.email)
+    }));
+
+    res.status(200).json(usersWithStatus);
   } catch (error) {
     console.error("Search users error:", error);
     res.status(500).json({ message: "Server error" });
