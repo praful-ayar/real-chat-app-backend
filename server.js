@@ -37,6 +37,7 @@ app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/messages', require('./routes/messageRoutes'));
 app.use('/api/gifs', require('./routes/gifRoutes'));
 app.use('/api/contacts', require('./routes/contactRoutes'));
+app.use('/api/statuses', require('./routes/statusRoutes'));
 
 // Translation Route using Gemini
 app.post('/api/translate', async (req, res) => {
@@ -69,6 +70,7 @@ app.post('/api/translate', async (req, res) => {
 });
 
 let users = [];
+app.set('getOnlineUsers', () => users);
 
 io.on("connection", (socket) => {
   console.log("User Connected:", socket.id);
@@ -126,6 +128,33 @@ io.on("connection", (socket) => {
     } catch (err) {
       console.error("Error updating status:", err);
     }
+  });
+
+  // WebRTC Video Calling Signaling Events
+  socket.on("callUser", (data) => {
+    // Send call offer to specific user
+    io.to(data.userToCall).emit("incomingCall", {
+      signal: data.signalData,
+      from: data.from,
+      fromName: data.fromName
+    });
+  });
+
+  socket.on("callRinging", (data) => {
+    io.to(data.to).emit("callRinging");
+  });
+
+  socket.on("answerCall", (data) => {
+    // Send call answer back to caller
+    io.to(data.to).emit("callAccepted", data.signal);
+  });
+
+  socket.on("iceCandidate", (data) => {
+    io.to(data.to).emit("iceCandidate", data.candidate);
+  });
+
+  socket.on("endCall", (data) => {
+    io.to(data.to).emit("callEnded");
   });
 
   socket.on("disconnect", () => {
